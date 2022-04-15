@@ -7,6 +7,11 @@ from sc2.player import Bot, Computer
 class Oli_bot(sc2.BotAI):
     async def on_step(self, iteration):
         await self.distribute_workers()
+    
+    async def build_workers(self):
+        for commandcenter in self.units(COMMANDCENTER).ready.noqueue:
+            if self.can_afford(SCV):
+                await self.do(commandcenter.train(SCV))
         
 run_game(maps.get("AbyssalReefLE"), [
     Bot(Race.Terran, Oli_bot()),
