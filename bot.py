@@ -9,4 +9,4 @@ class Oli_bot(sc2.BotAI):
 run_game(maps.get("AbyssalReefLE"), [
     Bot(Race.Terran, Oli_bot()),
     Computer.Terran, Difficulty.Easy
-    ], realtime=True)
+    ], realtime=True) 
