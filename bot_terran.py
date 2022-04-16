@@ -33,25 +33,49 @@ class Oli_bot(sc2.BotAI):
         cc = cc.first
         await self.distribute_workers()
         
-        if self.workers.amount == 12:
+        if self.workers.amount == 12 and cc.noqueue and self.can_afford(SCV):
             await self.do(cc.train(SCV))
-        elif self.workers.amount > 12 and cc.noqueue:
-            await self.do(cc.train(SCV))
-            
+        
+        if self.workers.amount > 12 and self.already_pending(SUPPLYDEPOT) and self.can_afford(SCV) and cc.noqueue:
+                await self.do(cc.train(SCV))
+                
+        if self.units(UnitTypeId.SCV).amount < 18 and self.units(SUPPLYDEPOT).exists and self.can_afford(SCV) and self.units(UnitTypeId.BARRACKS).ready.amount < 1 and cc.noqueue:
+                await self.do(cc.train(SCV))
+        
+        if self.units(UnitTypeId.BARRACKS).amount > 0 and self.already_pending(UnitTypeId.REFINERY) < 1:
+            for th in self.townhalls:
+                vgs = self.state.vespene_geyser.closer_than(10, th)
+                for vg in vgs:
+                    if await self.can_place(UnitTypeId.REFINERY, vg.position) and self.can_afford(UnitTypeId.REFINERY):
+                        ws = self.workers.gathering
+                        if ws.exists: # same condition as above
+                            w = ws.closest_to(vg)
+                            # caution: the target for the refinery has to be the vespene geyser, not its position!
+                            w.build(UnitTypeId.REFINERY, vg)
+        ''' # make scvs until 18, usually you only need 1:1 mineral:gas ratio for reapers, but if you don't lose any then you will need additional depots (mule income should take care of that)
+        # stop scv production when barracks is complete but we still have a command cender (priotize morphing to orbital command)
+        if self.can_afford(UnitTypeId.SCV) and self.supply_left > 0 and self.units(UnitTypeId.SCV).amount < 18 and (self.units(UnitTypeId.BARRACKS).ready.amount < 1 and self.units(UnitTypeId.COMMANDCENTER).idle.exists or self.units(UnitTypeId.ORBITALCOMMAND).idle.exists):
+            for th in self.townhalls.idle:
+                self.combinedActions.append(th.train(UnitTypeId.SCV)) '''
+        
         ''' if self.can_afford(SCV):
             await self.build_workers(cc) '''
         
-        if self.units(BARRACKS).exists:
-            Early_g.need_supply_depot = True
+        ''' if self.units(BARRACKS).exists:
+            Early_g.need_supply_depot = True '''
             
         #self.supply_left < 3 and 
-        if self.supply_used < 13 and self.can_afford(SUPPLYDEPOT): 
+        if self.supply_left < 3 and self.can_afford(SUPPLYDEPOT) and not self.already_pending(SUPPLYDEPOT): 
             await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
-        if self.supply_used > 14 and self.supply_used < 17 and self.can_afford(SUPPLYDEPOT): 
-            await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
+            
+        # send workers to mine from gas
+        if iteration % 25 == 0:
+            await self.distribute_workers()
+                
+        ''' 
         if self.supply_left < 3 and self.supply_used > 22 and self.can_afford(SUPPLYDEPOT): 
             await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
-        
+         '''
         if self.units(SUPPLYDEPOT).exists:
             if not self.units(BARRACKS).exists:
                 if self.can_afford(BARRACKS):
