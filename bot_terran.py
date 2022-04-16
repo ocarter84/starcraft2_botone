@@ -22,6 +22,7 @@ class Game():
         self.iteration = time
         self.supply_depots = 0
         self.workers = 0
+        self.need_supply_depot = False
 
 class Oli_bot(sc2.BotAI):
     async def on_step(self, iteration):
@@ -32,18 +33,23 @@ class Oli_bot(sc2.BotAI):
         cc = cc.first
         await self.distribute_workers()
         
-        if self.workers.amount < 22 and cc.noqueue:
+        if self.workers.amount == 12:
             await self.do(cc.train(SCV))
+        elif self.workers.amount > 12 and cc.noqueue:
+            await self.do(cc.train(SCV))
+            
         ''' if self.can_afford(SCV):
             await self.build_workers(cc) '''
+        
+        if self.units(BARRACKS).exists:
+            Early_g.need_supply_depot = True
             
         #self.supply_left < 3 and 
-        if self.supply_used < 15 and self.can_afford(SUPPLYDEPOT): 
-            #print("Supply Depots: "+str(Early_g.supply_depots))
+        if self.supply_used < 13 and self.can_afford(SUPPLYDEPOT): 
             await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
-            #await self.build_supply(cc)
-        if self.supply_left < 3 and self.can_afford(SUPPLYDEPOT): 
-            #print("Supply Depots: "+str(Early_g.supply_depots))
+        if self.supply_used > 14 and self.supply_used < 17 and self.can_afford(SUPPLYDEPOT): 
+            await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
+        if self.supply_left < 3 and self.supply_used > 22 and self.can_afford(SUPPLYDEPOT): 
             await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
         
         if self.units(SUPPLYDEPOT).exists:
