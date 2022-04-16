@@ -42,6 +42,9 @@ class Oli_bot(sc2.BotAI):
             #print("Supply Depots: "+str(Early_g.supply_depots))
             await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
             #await self.build_supply(cc)
+        if self.supply_left < 3 and self.can_afford(SUPPLYDEPOT): 
+            #print("Supply Depots: "+str(Early_g.supply_depots))
+            await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
         
         if self.units(SUPPLYDEPOT).exists:
             if not self.units(BARRACKS).exists:
