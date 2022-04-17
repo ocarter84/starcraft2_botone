@@ -33,7 +33,7 @@ class Oli_bot(sc2.BotAI):
         cc = cc.first
         await self.distribute_workers()
         
-        if self.workers.amount == 12 and cc.noqueue and self.can_afford(SCV):
+        if self.workers.amount == 12 and cc.noqueue and self.can_afford(SCV) and cc.noqueue:
             await self.do(cc.train(SCV))
         
         if self.workers.amount > 12 and self.already_pending(SUPPLYDEPOT) and self.can_afford(SCV) and cc.noqueue:
@@ -41,6 +41,21 @@ class Oli_bot(sc2.BotAI):
                 
         if self.units(UnitTypeId.SCV).amount < 18 and self.units(SUPPLYDEPOT).exists and self.can_afford(SCV) and self.units(UnitTypeId.BARRACKS).ready.amount < 1 and cc.noqueue:
                 await self.do(cc.train(SCV))
+        
+        #build first refinery
+        if self.already_pending(UnitTypeId.SUPPLYDEPOT) < 1 and self.units(REFINERY).amount < 1:
+            if self.can_afford(REFINERY):
+                vgs = self.state.vespene_geyser.closer_than(20.0, cc)
+                for vg in vgs:
+                    if self.units(REFINERY).closer_than(1.0, vg).exists:
+                        break
+
+                    worker = self.select_build_worker(vg.position)
+                    if worker is None:
+                        break
+
+                    await self.do(worker.build(REFINERY, vg))
+                    break
         
         if self.units(UnitTypeId.BARRACKS).amount > 0 and self.already_pending(UnitTypeId.REFINERY) < 1:
             for th in self.townhalls:
@@ -187,9 +202,9 @@ class Oli_bot(sc2.BotAI):
                 if workerPool.amount > 0:
                     w = workerPool.pop()
                     if len(w.orders) == 1 and w.orders[0].ability.id in [AbilityId.HARVEST_RETURN]:
-                        self.combinedActions.append(w.gather(gInfo["unit"], queue=True))
+                        w.gather(gInfo["unit"], queue=True)
                     else:
-                        self.combinedActions.append(w.gather(gInfo["unit"]))
+                        w.gather(gInfo["unit"])
 
         if not onlySaturateGas:
             # if we now have left over workers, make them mine at bases with deficit in mineral workers
@@ -202,9 +217,9 @@ class Oli_bot(sc2.BotAI):
                         w = workerPool.pop()
                         mf = self.state.mineral_field.closer_than(10, thInfo["unit"]).closest_to(w)
                         if len(w.orders) == 1 and w.orders[0].ability.id in [AbilityId.HARVEST_RETURN]:
-                            self.combinedActions.append(w.gather(mf, queue=True))
+                            w.gather(mf, queue=True)
                         else:
-                            self.combinedActions.append(w.gather(mf))
+                            w.gather(mf)
 
 
         
