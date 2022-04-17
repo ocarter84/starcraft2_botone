@@ -127,11 +127,11 @@ class Oli_bot(sc2.BotAI):
     #    await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
         
     # distribute workers function rewritten, the default distribute_workers() function did not saturate gas quickly enough
-    async def distribute_workers(self, performanceHeavy=True, onlySaturateGas=False):
+    async def distribute_workers(self, performanceHeavy=True, onlySaturateGas=True):
         # expansion_locations = self.expansion_locations
-        # owned_expansions = self.owned_expansions
+        owned_expansions = self.owned_expansions
         mineralTags = [x.tag for x in self.state.units.mineral_field]
-        # gasTags = [x.tag for x in self.state.units.vespene_geyser]
+        gasTag = [x.tag for x in self.state.units.vespene_geyser]
         geyserTags = [x.tag for x in self.geysers]
 
         workerPool = self.units & []
