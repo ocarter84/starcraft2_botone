@@ -43,7 +43,7 @@ class Oli_bot(sc2.BotAI):
                 await self.do(cc.train(SCV))
         
         #build first refinery
-        if self.already_pending(UnitTypeId.SUPPLYDEPOT) < 1 and self.units(REFINERY).amount < 1:
+        if self.already_pending(UnitTypeId.SUPPLYDEPOT) == 1 and self.units(REFINERY).amount < 1:
             if self.can_afford(REFINERY):
                 vgs = self.state.vespene_geyser.closer_than(20.0, cc)
                 for vg in vgs:
@@ -57,7 +57,8 @@ class Oli_bot(sc2.BotAI):
                     await self.do(worker.build(REFINERY, vg))
                     break
         
-        if self.units(UnitTypeId.BARRACKS).amount > 0 and self.already_pending(UnitTypeId.REFINERY) < 1:
+        #build second refinery after second supply depot has started.
+        if self.already_pending(UnitTypeId.BARRACKS) == 1 and self.units(REFINERY).amount == 1 and self.already_pending(UnitTypeId.REFINERY) < 1:
             for th in self.townhalls:
                 vgs = self.state.vespene_geyser.closer_than(10, th)
                 for vg in vgs:
@@ -78,14 +79,21 @@ class Oli_bot(sc2.BotAI):
         
         ''' if self.units(BARRACKS).exists:
             Early_g.need_supply_depot = True '''
+        
+        #Build Second Supply Depot 
+        if self.can_afford(SUPPLYDEPOT) and self.already_pending(BARRACKS) == 1 and not self.already_pending(SUPPLYDEPOT): 
+            await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
             
-        #self.supply_left < 3 and 
+        #Build First Supply Depot
         if self.supply_left < 3 and self.can_afford(SUPPLYDEPOT) and not self.already_pending(SUPPLYDEPOT): 
             await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
             
         # send workers to mine from gas
         if iteration % 25 == 0:
+            print("IN Distribute Workers func iteration: "+str(iteration))
             await self.distribute_workers()
+            
+        
                 
         ''' 
         if self.supply_left < 3 and self.supply_used > 22 and self.can_afford(SUPPLYDEPOT): 
@@ -96,7 +104,7 @@ class Oli_bot(sc2.BotAI):
                 if self.can_afford(BARRACKS):
                     await self.build(BARRACKS, near=cc.position.towards(self.game_info.map_center, 8))
 
-            elif self.units(BARRACKS).exists and self.units(REFINERY).amount < 2:
+            ''' elif self.units(BARRACKS).exists and self.units(REFINERY).amount < 2:
                 if self.can_afford(REFINERY):
                     vgs = self.state.vespene_geyser.closer_than(20.0, cc)
                     for vg in vgs:
@@ -108,7 +116,7 @@ class Oli_bot(sc2.BotAI):
                             break
 
                         await self.do(worker.build(REFINERY, vg))
-                        break
+                        break '''
 
             if self.units(BARRACKS).ready.exists:
                 f = self.units(FACTORY)
@@ -129,9 +137,9 @@ class Oli_bot(sc2.BotAI):
     # distribute workers function rewritten, the default distribute_workers() function did not saturate gas quickly enough
     async def distribute_workers(self, performanceHeavy=True, onlySaturateGas=True):
         # expansion_locations = self.expansion_locations
-        owned_expansions = self.owned_expansions
+        #owned_expansions = self.owned_expansions
         mineralTags = [x.tag for x in self.state.units.mineral_field]
-        gasTag = [x.tag for x in self.state.units.vespene_geyser]
+        gasTags = [x.tag for x in self.state.units.vespene_geyser]
         geyserTags = [x.tag for x in self.geysers]
 
         workerPool = self.units & []
@@ -198,9 +206,11 @@ class Oli_bot(sc2.BotAI):
             if performanceHeavy:
                 # sort furthest away to closest (as the pop() function will take the last element)
                 workerPool.sort(key=lambda x:x.distance_to(gInfo["unit"]), reverse=True)
+                print("Worker pool: "+str(workerPool))
             for i in range(gInfo["deficit"]):
                 if workerPool.amount > 0:
                     w = workerPool.pop()
+                    print("type of w: "+str(type(w)))
                     if len(w.orders) == 1 and w.orders[0].ability.id in [AbilityId.HARVEST_RETURN]:
                         w.gather(gInfo["unit"], queue=True)
                     else:
