@@ -43,7 +43,7 @@ class Oli_bot(sc2.BotAI):
                 await self.do(cc.train(SCV))
         
         #build first refinery
-        if self.already_pending(UnitTypeId.SUPPLYDEPOT) == 1 and self.units(REFINERY).amount < 1:
+        if self.units(REFINERY).amount < 1 and self.already_pending(UnitTypeId.BARRACKS) > 0:
             if self.can_afford(REFINERY):
                 vgs = self.state.vespene_geyser.closer_than(20.0, cc)
                 for vg in vgs:
@@ -56,9 +56,19 @@ class Oli_bot(sc2.BotAI):
 
                     await self.do(worker.build(REFINERY, vg))
                     break
-        
+                
+        if self.units(REFINERY).amount > 0:
+            rfs = self.units(REFINERY).closer_than(20.0, cc)
+            for rf in rfs:
+                worker = self.select_build_worker(rf.position)
+                if worker is None:
+                    break
+
+                await self.do(worker.gather(rf))
+                break
+            
         #build second refinery after second supply depot has started.
-        if self.already_pending(UnitTypeId.BARRACKS) == 1 and self.units(REFINERY).amount == 1 and self.already_pending(UnitTypeId.REFINERY) < 1:
+        if self.already_pending(UnitTypeId.BARRACKS) > 0 and self.units(REFINERY).amount > 0 and self.units(REFINERY).amount < 2:
             for th in self.townhalls:
                 vgs = self.state.vespene_geyser.closer_than(10, th)
                 for vg in vgs:
@@ -172,7 +182,8 @@ class Oli_bot(sc2.BotAI):
                 if deficit > 0:
                     deficitTownhalls[th.tag] = {"unit": th, "deficit": deficit}
                 elif deficit < 0:
-                    surplusWorkers = self.workers.closer_than(10, th).filter(lambda w:w.tag not in workerPoolTags and len(w.orders) == 1 and w.orders[0].ability.id in [AbilityId.HARVEST_GATHER] and w.orders[0].target in mineralTags)
+                    #surplusWorkers = self.workers.closer_than(10, th).filter(lambda w:w.tag not in workerPoolTags and len(w.orders) == 1 and w.orders[0].ability.id in [AbilityId.HARVEST_GATHER] and w.orders[0].target in mineralTags)
+                    surplusWorkers = self.workers.closer_than(10, th)
                     # workerPool.extend(surplusWorkers)
                     for i in range(-deficit):
                         if surplusWorkers.amount > 0:
@@ -180,7 +191,12 @@ class Oli_bot(sc2.BotAI):
                             workerPool.append(w)
                             workerPoolTags.add(w.tag)
                     surplusTownhalls[th.tag] = {"unit": th, "deficit": deficit}
-
+            
+            #Adding here 4/17/2022 trying to get just 2 addl workers to the first refinery
+            surplusWorkers = self.workers.closer_than(10, th)
+            w = surplusWorkers.pop()
+            workerPool.append(w)
+            workerPoolTags.add(w.tag)
             if all([len(deficitGeysers) == 0, len(surplusGeysers) == 0, len(surplusTownhalls) == 0 or deficitTownhalls == 0]):
                 # cancel early if there is nothing to balance
                 return
@@ -206,15 +222,18 @@ class Oli_bot(sc2.BotAI):
             if performanceHeavy:
                 # sort furthest away to closest (as the pop() function will take the last element)
                 workerPool.sort(key=lambda x:x.distance_to(gInfo["unit"]), reverse=True)
-                print("Worker pool: "+str(workerPool))
+                #print("Worker pool: "+str(workerPool))
             for i in range(gInfo["deficit"]):
                 if workerPool.amount > 0:
                     w = workerPool.pop()
-                    print("type of w: "+str(type(w)))
-                    if len(w.orders) == 1 and w.orders[0].ability.id in [AbilityId.HARVEST_RETURN]:
-                        w.gather(gInfo["unit"], queue=True)
+                    #print("type of w: "+str(type(w)))
+                    if len(w.orders) == 1:
+                        #w.gather(gInfo["unit"], queue=True)
+                        w.gather(gInfo["unit"])
                     else:
                         w.gather(gInfo["unit"])
+                        #testing here
+                        w.gather(gInfo["unit"], queue=True)
 
         if not onlySaturateGas:
             # if we now have left over workers, make them mine at bases with deficit in mineral workers
@@ -243,7 +262,7 @@ def main():
         # Human(Race.Terran),
         Bot(Race.Terran, Oli_bot()),
         Computer(Race.Zerg, Difficulty.Easy)
-    ], realtime=True)
+    ], realtime=False)
 
 if __name__ == '__main__':
     main()
