@@ -23,6 +23,9 @@ class Game():
         self.supply_depots = 0
         self.workers = 0
         self.need_supply_depot = False
+    
+
+        
 
 class Oli_bot(sc2.BotAI):
     async def on_step(self, iteration):
@@ -42,6 +45,21 @@ class Oli_bot(sc2.BotAI):
                 
         if self.units(UnitTypeId.SCV).amount < 18 and self.units(SUPPLYDEPOT).exists and self.can_afford(SCV) and self.units(UnitTypeId.BARRACKS).ready.amount < 1 and cc.noqueue:
                 await self.do(cc.train(SCV))
+                
+        # Raise depos when enemies are nearby
+        for depo in self.units(SUPPLYDEPOT).ready:
+            for unit in self.known_enemy_units.not_structure:
+                if unit.position.to2.distance_to(depo.position.to2) < 15:
+                    break
+            else:
+                await self.do(depo(MORPH_SUPPLYDEPOT_LOWER))
+
+        # Lower depos when no enemies are nearby
+        for depo in self.units(SUPPLYDEPOTLOWERED).ready:
+            for unit in self.known_enemy_units.not_structure:
+                if unit.position.to2.distance_to(depo.position.to2) < 10:
+                    await self.do(depo(MORPH_SUPPLYDEPOT_RAISE))
+                    break
         
         #build first refinery
         if self.units(REFINERY).amount < 1 and self.already_pending(UnitTypeId.BARRACKS) > 0:
@@ -59,24 +77,27 @@ class Oli_bot(sc2.BotAI):
                     break
                 
         #Move additional SCVs to new refinery
-        if self.units(REFINERY).amount > 0 and self.units(REFINERY).amount < 3:
-            gasTags = [x.tag for x in self.state.units.vespene_geyser]
+        if self.units(REFINERY).amount > 0:
             rfs = self.units(REFINERY).closer_than(20.0, cc)
             for rf in rfs:
-                worker = self.select_build_worker(rf.position)
-                if worker is None:
-                    break
-                await self.do(worker.gather(rf))
-                #await self.do(worker.gather(self.units(REFINERY).closer_than(20.0, cc)))
-                break
-            for x in self.workers.closer_than(10, cc):
-                #print(type(x))
-                try: 
-                    #x.orders[0].ability.id in [AbilityId.HARVEST_GATHER]
-                    if x.orders[0].target in gasTags:
-                        count = count + 1
-                except Exception as e:
-                    print("Error: "+str(e))
+                if rf.assigned_harvesters < 3:
+                    gasTags = [x.tag for x in self.state.units.vespene_geyser]
+                    rfs = self.units(REFINERY).closer_than(20.0, cc)
+                    for rf in rfs:
+                        worker = self.select_build_worker(rf.position)
+                        if worker is None:
+                            break
+                        await self.do(worker.gather(rf))
+                        #await self.do(worker.gather(self.units(REFINERY).closer_than(20.0, cc)))
+                        break
+                    for x in self.workers.closer_than(10, cc):
+                        #print(type(x))
+                        try: 
+                            #x.orders[0].ability.id in [AbilityId.HARVEST_GATHER]
+                            if x.orders[0].target in gasTags:
+                                count = count + 1
+                        except Exception as e:
+                            print("Error: "+str(e))
                     
                 
             
@@ -105,13 +126,51 @@ class Oli_bot(sc2.BotAI):
                     break
         
         
-        #Build Second Supply Depot 
+        ''' #Build Second Supply Depot 
         if self.can_afford(SUPPLYDEPOT) and self.already_pending(BARRACKS) == 1 and not self.already_pending(SUPPLYDEPOT): 
             await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
             
         #Build First Supply Depot
         if self.supply_left < 3 and self.can_afford(SUPPLYDEPOT) and not self.already_pending(SUPPLYDEPOT): 
-            await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
+            await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8)) '''
+        
+        depot_placement_positions = self.main_base_ramp.corner_depots
+        # Uncomment the following if you want to build 3 supplydepots in the wall instead of a barracks in the middle + 2 depots in the corner
+        # depot_placement_positions = self.main_base_ramp.corner_depots | {self.main_base_ramp.depot_in_middle}
+
+        barracks_placement_position = None
+        barracks_placement_position = self.main_base_ramp.barracks_correct_placement
+        # If you prefer to have the barracks in the middle without room for addons, use the following instead
+        # barracks_placement_position = self.main_base_ramp.barracks_in_middle
+
+        depots = self.units(SUPPLYDEPOT) | self.units(SUPPLYDEPOTLOWERED)
+
+        # Filter locations close to finished supply depots
+        if depots:
+            depot_placement_positions = {d for d in depot_placement_positions if depots.closest_distance_to(d) > 1}
+
+        # Build depots
+        if self.can_afford(SUPPLYDEPOT) and not self.already_pending(SUPPLYDEPOT):
+            if len(depot_placement_positions) == 0:
+                return
+            # Choose any depot location
+            target_depot_location = depot_placement_positions.pop()
+            ws = self.workers.gathering
+            if ws: # if workers were found
+                w = ws.random
+                await self.do(w.build(SUPPLYDEPOT, target_depot_location))
+
+        # Build barracks
+        if depots.ready.exists and self.can_afford(BARRACKS) and not self.already_pending(BARRACKS):
+            if self.units(BARRACKS).amount + self.already_pending(BARRACKS) > 0:
+                return
+            ws = self.workers.gathering
+            if ws and barracks_placement_position: # if workers were found
+                w = ws.random
+                await self.do(w.build(BARRACKS, barracks_placement_position))
+
+        
+        
             
         # send workers to mine from gas
         if iteration % 50 == 0:
@@ -129,33 +188,22 @@ class Oli_bot(sc2.BotAI):
         if self.supply_left < 3 and self.supply_used > 22 and self.can_afford(SUPPLYDEPOT): 
             await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
          '''
-        if self.units(SUPPLYDEPOT).exists:
+        #original build baracks 
+        ''' if self.units(SUPPLYDEPOT).exists:
             if not self.units(BARRACKS).exists:
                 if self.can_afford(BARRACKS):
-                    await self.build(BARRACKS, near=cc.position.towards(self.game_info.map_center, 8))
+                    await self.build(BARRACKS, near=cc.position.towards(self.game_info.map_center, 8)) '''
 
-            ''' elif self.units(BARRACKS).exists and self.units(REFINERY).amount < 2:
-                if self.can_afford(REFINERY):
-                    vgs = self.state.vespene_geyser.closer_than(20.0, cc)
-                    for vg in vgs:
-                        if self.units(REFINERY).closer_than(1.0, vg).exists:
-                            break
 
-                        worker = self.select_build_worker(vg.position)
-                        if worker is None:
-                            break
 
-                        await self.do(worker.build(REFINERY, vg))
-                        break '''
-
-            if self.units(BARRACKS).ready.exists:
-                f = self.units(FACTORY)
-                if not f.exists:
-                    if self.can_afford(FACTORY):
-                        await self.build(FACTORY, near=cc.position.towards(self.game_info.map_center, 8))
-                elif f.ready.exists and self.units(STARPORT).amount < 2:
-                    if self.can_afford(STARPORT):
-                        await self.build(STARPORT, near=cc.position.towards(self.game_info.map_center, 30).random_on_distance(8))
+        if self.units(BARRACKS).ready.exists:
+            f = self.units(FACTORY)
+            if not f.exists:
+                if self.can_afford(FACTORY):
+                    await self.build(FACTORY, near=cc.position.towards(self.game_info.map_center, 8))
+            elif f.ready.exists and self.units(STARPORT).amount < 2:
+                if self.can_afford(STARPORT):
+                    await self.build(STARPORT, near=cc.position.towards(self.game_info.map_center, 30).random_on_distance(8))
         
 
     #async def build_workers(self,cc):
@@ -164,7 +212,7 @@ class Oli_bot(sc2.BotAI):
     #async def build_supply(self,cc):
     #    await self.build(SUPPLYDEPOT, near=cc.position.towards(self.game_info.map_center,8))
         
-    # distribute workers function rewritten, the default distribute_workers() function did not saturate gas quickly enough
+    ''' # distribute workers function rewritten, the default distribute_workers() function did not saturate gas quickly enough
     async def distribute_workers(self, performanceHeavy=True, onlySaturateGas=True):
         # expansion_locations = self.expansion_locations
         #owned_expansions = self.owned_expansions
@@ -269,7 +317,7 @@ class Oli_bot(sc2.BotAI):
                             w.gather(mf, queue=True)
                         else:
                             w.gather(mf)
-
+ '''
 
         
 ''' run_game(maps.get("AbyssalReefLE"), [
@@ -282,7 +330,7 @@ def main():
         # Human(Race.Terran),
         Bot(Race.Terran, Oli_bot()),
         Computer(Race.Zerg, Difficulty.Easy)
-    ], realtime=True)
+    ], realtime=False)
 
 if __name__ == '__main__':
     main()
