@@ -26,6 +26,7 @@ from sc2.units import Units
 class Oli_bot(BotAI):
     def __init__(self):
         self.unit_command_uses_self_do = False
+        self.Flag = True
         
     async def on_step(self, iteration):
         
@@ -33,14 +34,16 @@ class Oli_bot(BotAI):
         cc = cc.first
         await self.distribute_workers()
         
-        if self.workers.amount == 12 and cc.noqueue and self.can_afford(UnitTypeId.SCV) and cc.is_idle:
+        if self.workers.amount == 12 and self.can_afford(UnitTypeId.SCV) and cc.is_idle:
             #await self.do(cc.train(UnitTypeId.SCV))
             self.do(cc.train(UnitTypeId.SCV))
         
-        if self.workers.amount > 12 and self.already_pending(UnitTypeId.SUPPLYDEPOT) and self.can_afford(UnitTypeId.SCV) and cc.noqueue:
+        if self.workers.amount < 15 and self.already_pending(UnitTypeId.SUPPLYDEPOT) and self.can_afford(UnitTypeId.SCV) and cc.is_idle:
             self.do(cc.train(UnitTypeId.SCV))
                 
-        if self.units(UnitTypeId.SCV).amount < 18 and self.structures(UnitTypeId.SUPPLYDEPOT).exists and self.can_afford(UnitTypeId.SCV) and self.structures(UnitTypeId.BARRACKS).ready.amount < 1 and cc.noqueue:
+        if self.units(UnitTypeId.SCV).amount < 21 and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount > 0 \
+            and self.already_pending(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.BARRACKS) \
+            and self.can_afford(UnitTypeId.SCV) and cc.is_idle:
             self.do(cc.train(UnitTypeId.SCV))
                 
         # Raise depos when enemies are nearby                
@@ -59,7 +62,21 @@ class Oli_bot(BotAI):
                     break
         
         #build first refinery
-        if self.can_afford(UnitTypeId.REFINERY) and self.already_pending(UnitTypeId.BARRACKS):
+        if self.can_afford(UnitTypeId.REFINERY) and self.already_pending(UnitTypeId.BARRACKS) and self.already_pending(UnitTypeId.REFINERY) == 0:
+            vgs: Units = self.vespene_geyser.closer_than(20, cc)
+            for vg in vgs:
+                if self.gas_buildings.filter(lambda unit: unit.distance_to(vg) < 1):
+                    break
+
+                worker: Unit = self.select_build_worker(vg.position)
+                if worker is None:
+                    break
+
+                worker.build(UnitTypeId.REFINERY, vg)
+                print("!!!!! Build Refinery 1")
+                break
+        ''' #build second refinery
+        if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount > 1 and self.already_pending(UnitTypeId.BARRACKS):
                     vgs: Units = self.vespene_geyser.closer_than(20, cc)
                     for vg in vgs:
                         if self.gas_buildings.filter(lambda unit: unit.distance_to(vg) < 1):
@@ -71,59 +88,31 @@ class Oli_bot(BotAI):
 
                         worker.build(UnitTypeId.REFINERY, vg)
                         break
-                    
+         '''            
                 
         #Move additional SCVs to new refinery
         if self.structures(UnitTypeId.REFINERY).amount > 0:
             rfs = self.structures(UnitTypeId.REFINERY).closer_than(20.0, cc)
             for rf in rfs:
                 if rf.assigned_harvesters < 3:
-                    gasTags = [x.tag for x in self.state.units.vespene_geyser]
+                    #gasTags = [x.tag for x in self.state.units.vespene_geyser]
                     rfs = self.structures(UnitTypeId.REFINERY).closer_than(20.0, cc)
                     for rf in rfs:
                         worker = self.select_build_worker(rf.position)
                         if worker is None:
                             break
-                        await self.do(worker.gather(rf))
+                        self.do(worker.gather(rf))
                         #await self.do(worker.gather(self.units(REFINERY).closer_than(20.0, cc)))
                         break
-                    for x in self.workers.closer_than(10, cc):
+                    ''' for x in self.workers.closer_than(10, cc):
                         #print(type(x))
                         try: 
                             #x.orders[0].ability.id in [AbilityId.HARVEST_GATHER]
                             if x.orders[0].target in gasTags:
                                 count = count + 1
                         except Exception as e:
-                            print("Error: "+str(e))
+                            print("Error: "+str(e)) '''
                     
-                
-            
-        #build second refinery after second supply depot has started.
-        if self.structures(UnitTypeId.REFINERY).amount > 0:
-            ''' for th in self.townhalls:
-                vgs = self.state.vespene_geyser.closer_than(10, th)
-                for vg in vgs:
-                    if await self.can_place(UnitTypeId.REFINERY, vg.position) and self.can_afford(UnitTypeId.REFINERY):
-                        ws = self.workers.gathering
-                        if ws.exists: # same condition as above
-                            w = ws.closest_to(vg)
-                            # caution: the target for the refinery has to be the vespene geyser, not its position!
-                            w.build(UnitTypeId.REFINERY, vg) '''
-            if self.can_afford(UnitTypeId.REFINERY):
-                vgs = self.state.vespene_geyser.closer_than(20.0, cc)
-                for vg in vgs:
-                    if self.structures(UnitTypeId.REFINERY).closer_than(1.0, vg).exists:
-                        break
-
-                    worker = self.select_build_worker(vg.position)
-                    if worker is None:
-                        break
-                    
-                    if self.can_afford(UnitTypeId.REFINERY):
-                        #await self.do(worker.build(UnitTypeId.REFINERY, vg))
-                        self.do(worker.build(UnitTypeId.REFINERY, vg))
-                        break
-        
         
         ''' #Build Second Supply Depot 
         if self.can_afford(SUPPLYDEPOT) and self.already_pending(BARRACKS) == 1 and not self.already_pending(SUPPLYDEPOT): 
@@ -149,36 +138,85 @@ class Oli_bot(BotAI):
                 d
                 for d in depot_placement_positions if depots.closest_distance_to(d) > 1
             }
-
-        # Build depots
+        if iteration % 50 == 0:
+            print(str(iteration))
+            print(str(self.minerals))
+        
+        
+        # Get SCV moving towards first depot location
+        if self.Flag == True and iteration > 10:
+            if self.minerals > 50:
+                target_depot_location: Point2 = depot_placement_positions.pop()
+                scv_workers = self.units(UnitTypeId.SCV).closer_than(20.0, cc)
+                #workers: scv_workers[0]
+                if scv_workers:  # if workers were found
+                    worker: Unit = scv_workers[0]
+                    worker.move(target_depot_location)
+                    self.Flag = False
+                    #self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
+        
+        #Build first Depot with SCV near target build.
         if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.SUPPLYDEPOT) == 0:
-            if len(depot_placement_positions) == 0:
-                return
+            ''' if len(depot_placement_positions) < 2:
+                return '''
             # Choose any depot location
             target_depot_location: Point2 = depot_placement_positions.pop()
-            workers: Units = self.workers.gathering
+            scv_workers = self.units(UnitTypeId.SCV).closer_than(5.0, target_depot_location)
+            workers: Units = scv_workers
             if workers:  # if workers were found
                 worker: Unit = workers.random
                 self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
-
+                print("##########DEPOT 1 BUILD")
+        #Build second Depot with SCV near target build.
+        if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount ==1:
+            print("Here!!!!!!!!!!1111111111111")
+            if self.already_pending(UnitTypeId.BARRACKS) > 0:
+                print("Here!!!!!!!!!!")
+                if len(depot_placement_positions) == 0:
+                    #print("Here!!!!2222!!!!!!")
+                    return
+                # Choose any depot location
+                target_depot_location: Point2 = depot_placement_positions.pop()
+                workers: Units = self.workers.gathering
+                if workers:  # if workers were found
+                    worker: Unit = workers.random
+                    self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
+                    print("##########DEPOT 2 BUILD")
+                    
         # Build barracks
         if depots.ready and self.can_afford(UnitTypeId.BARRACKS) and self.already_pending(UnitTypeId.BARRACKS) == 0:
             if self.structures(UnitTypeId.BARRACKS).amount + self.already_pending(UnitTypeId.BARRACKS) > 0:
                 return
-            workers = self.workers.gathering
-            if workers and barracks_placement_position:  # if workers were found
+            scv_workers = self.units(UnitTypeId.SCV).closer_than(10.0, barracks_placement_position)
+            workers: Units = scv_workers
+            if workers:  # if workers were found
                 worker: Unit = workers.random
                 worker.build(UnitTypeId.BARRACKS, barracks_placement_position)
+                print("BARRACKS 1 BUILT!!!")
+            else:
+                workers: Units = self.workers.gathering
+                if workers:  # if workers were found
+                    worker: Unit = workers.random
+                    worker.build(UnitTypeId.BARRACKS, barracks_placement_position)
+                    print("BARRACKS 1a BUILT!!!")
+            
+            ''' workers = self.workers.gathering
+            if workers and barracks_placement_position:  # if workers were found
+                worker: Unit = workers.random
+                worker.build(UnitTypeId.BARRACKS, barracks_placement_position) '''
 
+        
+                
         #Build Reactor
         if self.units(UnitTypeId.BARRACKS).exists:
             for brks_react in self.units(UnitTypeId.BARRACKS).ready:
-                await self.do(brks_react.build(UnitTypeId.BARRACKSREACTOR))
+                brks_react.build(UnitTypeId.BARRACKSREACTOR)
         
                 
         if self.structures(UnitTypeId.BARRACKSREACTOR).exists:
             for brks_react2 in self.structures(UnitTypeId.BARRACKS).ready:
-                brks_react2.train(MARINE, 2)
+                #brks_react2.train(MARINE, 2)
+                brks_react2.train(UnitTypeId.MARINE,2)
         ### MARINE MICRO REFERNCE FOR LATER: https://github.com/Dentosal/python-sc2/blob/master/examples/arcade_bot.py
         
     async def on_building_construction_started(self, unit: Unit):
