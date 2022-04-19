@@ -75,6 +75,21 @@ class Oli_bot(BotAI):
                 worker.build(UnitTypeId.REFINERY, vg)
                 print("!!!!! Build Refinery 1")
                 break
+        
+        #build second refinery
+        if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.BARRACKS).ready.amount == 0  and self.already_pending(UnitTypeId.REFINERY) == 0:
+            vgs: Units = self.vespene_geyser.closer_than(20, cc)
+            for vg in vgs:
+                if self.gas_buildings.filter(lambda unit: unit.distance_to(vg) < 1):
+                    break
+
+                worker: Unit = self.select_build_worker(vg.position)
+                if worker is None:
+                    break
+
+                worker.build(UnitTypeId.REFINERY, vg)
+                print("!!!!! Build Refinery 1")
+                break
         ''' #build second refinery
         if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount > 1 and self.already_pending(UnitTypeId.BARRACKS):
                     vgs: Units = self.vespene_geyser.closer_than(20, cc)
@@ -156,7 +171,8 @@ class Oli_bot(BotAI):
                     #self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
         
         #Build first Depot with SCV near target build.
-        if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.SUPPLYDEPOT) == 0:
+        if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.SUPPLYDEPOT) == 0 and \
+            not self.already_pending(UnitTypeId.BARRACKS):
             ''' if len(depot_placement_positions) < 2:
                 return '''
             # Choose any depot location
@@ -167,23 +183,24 @@ class Oli_bot(BotAI):
                 worker: Unit = workers.random
                 self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
                 print("##########DEPOT 1 BUILD")
+            
         #Build second Depot with SCV near target build.
-        if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount ==1:
-            print("Here!!!!!!!!!!1111111111111")
-            if self.already_pending(UnitTypeId.BARRACKS) > 0:
-                print("Here!!!!!!!!!!")
-                if len(depot_placement_positions) == 0:
-                    #print("Here!!!!2222!!!!!!")
-                    return
-                # Choose any depot location
-                target_depot_location: Point2 = depot_placement_positions.pop()
-                #workers: Units = self.workers.gathering
-                scv_workers = self.units(UnitTypeId.SCV).closer_than(5.0, cc)
-                workers: Units = scv_workers
-                if workers:  # if workers were found
-                    worker: Unit = workers.random
-                    self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
-                    print("##########DEPOT 2 BUILD")
+        #if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount ==1:
+        if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.BARRACKS) > 0:
+            #if self.already_pending(UnitTypeId.BARRACKS) > 0:
+            print("Here!!!!!!!!!!")
+            if len(depot_placement_positions) == 0:
+                #print("Here!!!!2222!!!!!!")
+                return
+            # Choose any depot location
+            target_depot_location: Point2 = depot_placement_positions.pop()
+            #workers: Units = self.workers.gathering
+            scv_workers = self.units(UnitTypeId.SCV).closer_than(5.0, cc)
+            workers: Units = scv_workers
+            if workers:  # if workers were found
+                worker: Unit = workers.random
+                self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
+                print("##########DEPOT 2 BUILD")
                     
         # Build barracks
         if depots.ready and self.can_afford(UnitTypeId.BARRACKS) and self.already_pending(UnitTypeId.BARRACKS) == 0:
