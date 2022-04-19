@@ -26,7 +26,14 @@ from sc2.units import Units
 class Oli_bot(BotAI):
     def __init__(self):
         self.unit_command_uses_self_do = False
-        self.Flag = True
+        self.First_scv_flag = True
+        self.Build_refinery_1 = True
+        self.Build_refinery_2 = True
+        self.Build_supplyD_1 = True
+        self.Build_supplyD_2 = True
+        self.Build_barracks_1 = True
+        self.Build_reactorB_1 = True
+        self.Build_factory_1 = True
         
     async def on_step(self, iteration):
         
@@ -73,11 +80,11 @@ class Oli_bot(BotAI):
                     break
 
                 worker.build(UnitTypeId.REFINERY, vg)
-                print("!!!!! Build Refinery 1")
+                print("!!!!! Building Refinery 1")
                 break
         
         #build second refinery
-        if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.BARRACKS).ready.amount == 0  and self.already_pending(UnitTypeId.REFINERY) == 0:
+        if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.BARRACKS).ready.amount == 1  and self.already_pending(UnitTypeId.REFINERY) == 0:
             vgs: Units = self.vespene_geyser.closer_than(20, cc)
             for vg in vgs:
                 if self.gas_buildings.filter(lambda unit: unit.distance_to(vg) < 1):
@@ -88,7 +95,7 @@ class Oli_bot(BotAI):
                     break
 
                 worker.build(UnitTypeId.REFINERY, vg)
-                print("!!!!! Build Refinery 1")
+                print("!!!!! Build Refinery 2")
                 break
         ''' #build second refinery
         if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount > 1 and self.already_pending(UnitTypeId.BARRACKS):
@@ -159,7 +166,7 @@ class Oli_bot(BotAI):
         
         
         # Get SCV moving towards first depot location
-        if self.Flag == True and iteration > 10:
+        if self.First_scv_flag == True and iteration > 10:
             if self.minerals > 50:
                 target_depot_location: Point2 = depot_placement_positions.pop()
                 scv_workers = self.units(UnitTypeId.SCV).closer_than(20.0, cc)
@@ -167,12 +174,12 @@ class Oli_bot(BotAI):
                 if scv_workers:  # if workers were found
                     worker: Unit = scv_workers[0]
                     worker.move(target_depot_location)
-                    self.Flag = False
+                    self.First_scv_flag = False
                     #self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
         
         #Build first Depot with SCV near target build.
         if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.SUPPLYDEPOT) == 0 and \
-            not self.already_pending(UnitTypeId.BARRACKS):
+            not self.already_pending(UnitTypeId.BARRACKS) and self.structures(UnitTypeId.BARRACKS).amount == 0:
             ''' if len(depot_placement_positions) < 2:
                 return '''
             # Choose any depot location
@@ -186,9 +193,9 @@ class Oli_bot(BotAI):
             
         #Build second Depot with SCV near target build.
         #if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount ==1:
-        if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.BARRACKS) > 0:
+        if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.BARRACKS) == 1:
             #if self.already_pending(UnitTypeId.BARRACKS) > 0:
-            print("Here!!!!!!!!!!")
+            print("!!!! Supply Depot 2")
             if len(depot_placement_positions) == 0:
                 #print("Here!!!!2222!!!!!!")
                 return
@@ -265,7 +272,7 @@ def main():
     run_game(
         maps.get("Abyssal Reef LE"),
         [Bot(Race.Terran, Oli_bot()), Computer(Race.Zerg, Difficulty.Easy)],
-        realtime=True,
+        realtime=False,
         # sc2_version="4.10.1",
     )
 
