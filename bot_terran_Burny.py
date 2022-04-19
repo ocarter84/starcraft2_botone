@@ -32,9 +32,14 @@ class Oli_bot(BotAI):
         self.Build_refinery_2 = False
         self.Build_supplyD_1 = False
         self.Build_supplyD_2 = False
+        self.Build_supplyD_more = False
         self.Build_barracks_1 = False
         self.Build_reactorB_1 = False
         self.Build_factory_1 = False
+        self.Train_marine = True
+        self.Train_marines = False
+        self.Early_build = True
+        self.Build_factory = False
         
     async def on_step(self, iteration):
         
@@ -76,16 +81,12 @@ class Oli_bot(BotAI):
             for vg in vgs:
                 if self.gas_buildings.filter(lambda unit: unit.distance_to(vg) < 1):
                     break
-
                 worker: Unit = self.select_build_worker(vg.position)
                 if worker is None:
                     break
-
-                worker.build(UnitTypeId.REFINERY, vg)
-                print("!!!!! Building Refinery 1")
-                self.Build_refinery_1 = False
-                self.Build_supplyD_2 = True
-                break
+                if worker.build(UnitTypeId.REFINERY, vg):
+                    print("!!!!! Building Refinery 1")
+                    self.Build_refinery_1 = False
         
         #build second refinery
         #if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.BARRACKS).ready.amount == 1  and self.already_pending(UnitTypeId.REFINERY) == 0:
@@ -99,11 +100,10 @@ class Oli_bot(BotAI):
                 if worker is None:
                     break
 
-                worker.build(UnitTypeId.REFINERY, vg)
-                print("!!!!! Build Refinery 2")
-                self.Build_refinery_2 = False
-                self.Build_reactorB_1 = True
-                break
+                if worker.build(UnitTypeId.REFINERY, vg):
+                    print("!!!!! Build Refinery 2")
+                    self.Build_refinery_2 = False
+                    break
         ''' #build second refinery
         if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount > 1 and self.already_pending(UnitTypeId.BARRACKS):
                     vgs: Units = self.vespene_geyser.closer_than(20, cc)
@@ -180,13 +180,15 @@ class Oli_bot(BotAI):
                 #workers: scv_workers[0]
                 if scv_workers:  # if workers were found
                     worker: Unit = scv_workers[0]
-                    worker.move(target_depot_location)
-                    self.First_scv_flag = False
+                    if worker.move(target_depot_location):
+                        self.First_scv_flag = False
+                        self.Build_supplyD_1 = True
                     #self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
         
         #Build first Depot with SCV near target build.
-        if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.SUPPLYDEPOT) == 0 and \
-            not self.already_pending(UnitTypeId.BARRACKS) and self.structures(UnitTypeId.BARRACKS).amount == 0:
+        if self.Build_supplyD_1 == True and self.can_afford(UnitTypeId.SUPPLYDEPOT):
+            #and self.already_pending(UnitTypeId.SUPPLYDEPOT) == 0 and \
+            #not self.already_pending(UnitTypeId.BARRACKS) and self.structures(UnitTypeId.BARRACKS).amount == 0:
             ''' if len(depot_placement_positions) < 2:
                 return '''
             # Choose any depot location
@@ -195,76 +197,138 @@ class Oli_bot(BotAI):
             workers: Units = scv_workers
             if workers:  # if workers were found
                 worker: Unit = workers.random
-                self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
-                print("##########DEPOT 1 BUILD")
-                self.Build_barracks_1 = True
+                if self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location)):
+                    print("##########DEPOT 1 BUILD")
+                    self.Build_barracks_1 = True
+                    self.Build_supplyD_1 = False
             
         #Build second Depot with SCV near target build.
         #if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount ==1:
         #if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.BARRACKS) == 1:
-        if self.Build_supplyD_2 == True and self.can_afford(UnitTypeId.SUPPLYDEPOT):
+        if self.Build_supplyD_2 == True and self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.BARRACKS) == 1:
             #if self.already_pending(UnitTypeId.BARRACKS) > 0:
             print("!!!! Supply Depot 2")
-            if len(depot_placement_positions) == 0:
+            ''' if len(depot_placement_positions) == 0:
                 #print("Here!!!!2222!!!!!!")
-                return
+                return '''
             # Choose any depot location
             target_depot_location: Point2 = depot_placement_positions.pop()
             #workers: Units = self.workers.gathering
-            scv_workers = self.units(UnitTypeId.SCV).closer_than(5.0, cc)
+            scv_workers = self.units(UnitTypeId.SCV).closer_than(3.0, cc)
             workers: Units = scv_workers
             if workers:  # if workers were found
                 worker: Unit = workers.random
-                self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
-                print("##########DEPOT 2 BUILD")
-                self.Build_supplyD_2 = False
-                self.Build_refinery_2 = True
+                if self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location)):
+                    print("##########DEPOT 2 BUILD")
+                    self.Build_supplyD_2 = False
+                    self.Build_refinery_2 = True
+        
+        #build adddl supply depots as required
+        if self.supply_left < 5 and self.Early_build == False and self.townhalls:
+            self.Build_supplyD_more = True
+        if (
+            self.supply_left < 5 and self.townhalls and self.Build_supplyD_more
+            and self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.SUPPLYDEPOT) < 1
+        ):
+            workers: Units = self.workers.gathering
+            # If workers were found
+            if workers:
+                worker: Unit = workers.furthest_to(workers.center)
+                location: Point2 = await self.find_placement(UnitTypeId.SUPPLYDEPOT, worker.position, placement_step=3)
+                # If a placement location was found
+                if location:
+                    # Order worker to build exactly on that location
+                    if worker.build(UnitTypeId.SUPPLYDEPOT, location):
+                        self.Build_supplyD_more = False
                     
         # Build barracks
         #if depots.ready and self.can_afford(UnitTypeId.BARRACKS) and self.already_pending(UnitTypeId.BARRACKS) == 0:
         #    if self.structures(UnitTypeId.BARRACKS).amount + self.already_pending(UnitTypeId.BARRACKS) > 0:
         #        return
         if self.Build_barracks_1 == True and self.can_afford(UnitTypeId.BARRACKS):
+            print("Trying to Build BARRACKS")
             scv_workers = self.units(UnitTypeId.SCV).closer_than(10.0, barracks_placement_position)
             workers: Units = scv_workers
             if workers:  # if workers were found
                 worker: Unit = workers.random
-                worker.build(UnitTypeId.BARRACKS, barracks_placement_position)
-                print("BARRACKS 1 BUILT!!!")
-                self.Build_refinery_1 = True
-                self.Build_barracks_1 = False
+                if worker.build(UnitTypeId.BARRACKS, barracks_placement_position):
+                    print("BARRACKS 1 BUILT!!!")
+                    self.Build_refinery_1 = True
+                    self.Build_supplyD_2 = True
+                    self.Build_barracks_1 = False
+                    self.Train_marine = True
             else:
                 workers: Units = self.workers.gathering
                 if workers:  # if workers were found
                     worker: Unit = workers.random
-                    worker.build(UnitTypeId.BARRACKS, barracks_placement_position)
-                    self.Build_refinery_1 = True
-                    self.Build_barracks_1 = False
-                    print("BARRACKS 1a BUILT!!!")
+                    if worker.build(UnitTypeId.BARRACKS, barracks_placement_position):
+                        self.Build_refinery_1 = True
+                        self.Build_barracks_1 = False
+                        self.Build_supplyD_2 = True
+                        self.Train_marine = True
+                        print("BARRACKS 1a BUILT!!!")
             
             ''' workers = self.workers.gathering
             if workers and barracks_placement_position:  # if workers were found
                 worker: Unit = workers.random
                 worker.build(UnitTypeId.BARRACKS, barracks_placement_position) '''
-
-        
-                
         #Build Reactor
         if self.Build_reactorB_1 == True and self.can_afford(UnitTypeId.BARRACKSREACTOR):
             barracks_struc: Structure = self.structures(UnitTypeId.BARRACKS).random
-            self.do(barracks_struc.build(UnitTypeId.BARRACKSREACTOR))
+            if self.do(barracks_struc.build(UnitTypeId.BARRACKSREACTOR)):
+                self.Build_reactorB_1 = False
+                self.Train_marines = True
+                self.Build_supplyD_more = True
+                print("@@@@@@   Building Reactor")
+                self.Early_build = False
             #self.structures(UnitTypeId.BARRACKS).build(UnitTypeId.BARRACKSREACTOR)
-            
-            
-        if self.units(UnitTypeId.BARRACKS).exists:
+        
+        #train one Marine then build reactor
+        if (
+            self.structures(UnitTypeId.BARRACKS) and self.can_afford(UnitTypeId.MARINE)
+            and self.Train_marine == True
+            ):
+            barracks_struc: Structure = self.structures(UnitTypeId.BARRACKS).random
+            if self.do(barracks_struc.train(UnitTypeId.MARINE)):
+                print("Training Marine 1")
+                self.Train_marine = False
+                self.Build_reactorB_1 = True
+                self.Build_factory = True
+                
+       
+        
+        #continue to train marines
+        ''' bar1: Units = self.structures(UnitTypeId.BARRACKS).closer_than(50.0, cc)
+        #bar1 = self.structures(UnitTypeId.BARRACKS).closer_than(50.0, cc)
+        if bar1:
+            x1 = len(bar1.orders) '''
+        if self.Train_marines == True and self.can_afford(UnitTypeId.MARINE):
+            #print("Length of Barracks with reactor training list is: {0}".format(x1))
+            barracks_struc: Structure = self.structures(UnitTypeId.BARRACKS).random
+            self.do(barracks_struc.train(UnitTypeId.MARINE))    
+
+        num_mar = len(self.units(UnitTypeId.MARINE))
+        if num_mar > 15:
+            for unit1 in self.units(UnitTypeId.MARINE):
+                # Move to nearest enemy ground unit/building because no enemy unit is closer than 5
+                allEnemyGroundUnits: Units = self.enemy_units.not_flying
+                if allEnemyGroundUnits:
+                    closestEnemy: Unit = allEnemyGroundUnits.closest_to(unit1)
+                    unit1.move(closestEnemy)
+                    continue  # Continue for loop, don't execute any of the following
+
+                # Move to random enemy start location if no enemy buildings have been seen
+                unit1.move(random.choice(self.enemy_start_locations))
+                        
+        ''' if self.units(UnitTypeId.BARRACKS).exists:
             for brks_react in self.units(UnitTypeId.BARRACKS).ready:
-                brks_react.build(UnitTypeId.BARRACKSREACTOR)
+                brks_react.build(UnitTypeId.BARRACKSREACTOR) '''
         
                 
-        if self.structures(UnitTypeId.BARRACKSREACTOR).exists:
+        ''' if self.structures(UnitTypeId.BARRACKSREACTOR).exists:
             for brks_react2 in self.structures(UnitTypeId.BARRACKS).ready:
                 #brks_react2.train(MARINE, 2)
-                brks_react2.train(UnitTypeId.MARINE,2)
+                brks_react2.train(UnitTypeId.MARINE,2) '''
         ### MARINE MICRO REFERNCE FOR LATER: https://github.com/Dentosal/python-sc2/blob/master/examples/arcade_bot.py
         
     async def on_building_construction_started(self, unit: Unit):
@@ -272,6 +336,9 @@ class Oli_bot(BotAI):
 
     async def on_building_construction_complete(self, unit: Unit):
         print(f"Construction of building {unit} completed at {unit.position}.")
+    
+    async def on_end(self, game_result: "1"):
+        print("In -> ON_END!!!")
 
 def main():
     map = random.choice(
