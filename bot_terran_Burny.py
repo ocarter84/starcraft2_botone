@@ -177,7 +177,9 @@ class Oli_bot(BotAI):
                     return
                 # Choose any depot location
                 target_depot_location: Point2 = depot_placement_positions.pop()
-                workers: Units = self.workers.gathering
+                #workers: Units = self.workers.gathering
+                scv_workers = self.units(UnitTypeId.SCV).closer_than(5.0, cc)
+                workers: Units = scv_workers
                 if workers:  # if workers were found
                     worker: Unit = workers.random
                     self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
