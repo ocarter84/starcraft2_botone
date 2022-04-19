@@ -1,6 +1,7 @@
 #created 4/15/2022 from sentdex youtube tutorial https://www.youtube.com/watch?v=5U2WdZxJhEE
 # on 4/18/2022 realized that DentosalSc2 library was old, 2 years. so uninstalled and started on BurnySc2
 #https://github.com/BurnySc2/python-sc2/issues/4 - for major changes
+from ctypes import Structure
 import os
 import sys
 
@@ -27,13 +28,13 @@ class Oli_bot(BotAI):
     def __init__(self):
         self.unit_command_uses_self_do = False
         self.First_scv_flag = True
-        self.Build_refinery_1 = True
-        self.Build_refinery_2 = True
-        self.Build_supplyD_1 = True
-        self.Build_supplyD_2 = True
-        self.Build_barracks_1 = True
-        self.Build_reactorB_1 = True
-        self.Build_factory_1 = True
+        self.Build_refinery_1 = False
+        self.Build_refinery_2 = False
+        self.Build_supplyD_1 = False
+        self.Build_supplyD_2 = False
+        self.Build_barracks_1 = False
+        self.Build_reactorB_1 = False
+        self.Build_factory_1 = False
         
     async def on_step(self, iteration):
         
@@ -69,7 +70,8 @@ class Oli_bot(BotAI):
                     break
         
         #build first refinery
-        if self.can_afford(UnitTypeId.REFINERY) and self.already_pending(UnitTypeId.BARRACKS) and self.already_pending(UnitTypeId.REFINERY) == 0:
+        #if self.can_afford(UnitTypeId.REFINERY) and self.already_pending(UnitTypeId.BARRACKS) and self.already_pending(UnitTypeId.REFINERY) == 0:
+        if self.Build_refinery_1 == True and self.can_afford(UnitTypeId.REFINERY):
             vgs: Units = self.vespene_geyser.closer_than(20, cc)
             for vg in vgs:
                 if self.gas_buildings.filter(lambda unit: unit.distance_to(vg) < 1):
@@ -81,10 +83,13 @@ class Oli_bot(BotAI):
 
                 worker.build(UnitTypeId.REFINERY, vg)
                 print("!!!!! Building Refinery 1")
+                self.Build_refinery_1 = False
+                self.Build_supplyD_2 = True
                 break
         
         #build second refinery
-        if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.BARRACKS).ready.amount == 1  and self.already_pending(UnitTypeId.REFINERY) == 0:
+        #if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.BARRACKS).ready.amount == 1  and self.already_pending(UnitTypeId.REFINERY) == 0:
+        if self.Build_refinery_2 == True and self.can_afford(UnitTypeId.REFINERY):
             vgs: Units = self.vespene_geyser.closer_than(20, cc)
             for vg in vgs:
                 if self.gas_buildings.filter(lambda unit: unit.distance_to(vg) < 1):
@@ -96,6 +101,8 @@ class Oli_bot(BotAI):
 
                 worker.build(UnitTypeId.REFINERY, vg)
                 print("!!!!! Build Refinery 2")
+                self.Build_refinery_2 = False
+                self.Build_reactorB_1 = True
                 break
         ''' #build second refinery
         if self.can_afford(UnitTypeId.REFINERY) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount > 1 and self.already_pending(UnitTypeId.BARRACKS):
@@ -190,10 +197,12 @@ class Oli_bot(BotAI):
                 worker: Unit = workers.random
                 self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
                 print("##########DEPOT 1 BUILD")
+                self.Build_barracks_1 = True
             
         #Build second Depot with SCV near target build.
         #if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.structures(UnitTypeId.SUPPLYDEPOT).ready.amount ==1:
-        if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.BARRACKS) == 1:
+        #if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.BARRACKS) == 1:
+        if self.Build_supplyD_2 == True and self.can_afford(UnitTypeId.SUPPLYDEPOT):
             #if self.already_pending(UnitTypeId.BARRACKS) > 0:
             print("!!!! Supply Depot 2")
             if len(depot_placement_positions) == 0:
@@ -208,22 +217,29 @@ class Oli_bot(BotAI):
                 worker: Unit = workers.random
                 self.do(worker.build(UnitTypeId.SUPPLYDEPOT, target_depot_location))
                 print("##########DEPOT 2 BUILD")
+                self.Build_supplyD_2 = False
+                self.Build_refinery_2 = True
                     
         # Build barracks
-        if depots.ready and self.can_afford(UnitTypeId.BARRACKS) and self.already_pending(UnitTypeId.BARRACKS) == 0:
-            if self.structures(UnitTypeId.BARRACKS).amount + self.already_pending(UnitTypeId.BARRACKS) > 0:
-                return
+        #if depots.ready and self.can_afford(UnitTypeId.BARRACKS) and self.already_pending(UnitTypeId.BARRACKS) == 0:
+        #    if self.structures(UnitTypeId.BARRACKS).amount + self.already_pending(UnitTypeId.BARRACKS) > 0:
+        #        return
+        if self.Build_barracks_1 == True and self.can_afford(UnitTypeId.BARRACKS):
             scv_workers = self.units(UnitTypeId.SCV).closer_than(10.0, barracks_placement_position)
             workers: Units = scv_workers
             if workers:  # if workers were found
                 worker: Unit = workers.random
                 worker.build(UnitTypeId.BARRACKS, barracks_placement_position)
                 print("BARRACKS 1 BUILT!!!")
+                self.Build_refinery_1 = True
+                self.Build_barracks_1 = False
             else:
                 workers: Units = self.workers.gathering
                 if workers:  # if workers were found
                     worker: Unit = workers.random
                     worker.build(UnitTypeId.BARRACKS, barracks_placement_position)
+                    self.Build_refinery_1 = True
+                    self.Build_barracks_1 = False
                     print("BARRACKS 1a BUILT!!!")
             
             ''' workers = self.workers.gathering
@@ -234,6 +250,12 @@ class Oli_bot(BotAI):
         
                 
         #Build Reactor
+        if self.Build_reactorB_1 == True and self.can_afford(UnitTypeId.BARRACKSREACTOR):
+            barracks_struc: Structure = self.structures(UnitTypeId.BARRACKS).random
+            self.do(barracks_struc.build(UnitTypeId.BARRACKSREACTOR))
+            #self.structures(UnitTypeId.BARRACKS).build(UnitTypeId.BARRACKSREACTOR)
+            
+            
         if self.units(UnitTypeId.BARRACKS).exists:
             for brks_react in self.units(UnitTypeId.BARRACKS).ready:
                 brks_react.build(UnitTypeId.BARRACKSREACTOR)
@@ -272,7 +294,7 @@ def main():
     run_game(
         maps.get("Abyssal Reef LE"),
         [Bot(Race.Terran, Oli_bot()), Computer(Race.Zerg, Difficulty.Easy)],
-        realtime=False,
+        realtime=True,
         # sc2_version="4.10.1",
     )
 
