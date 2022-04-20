@@ -1,6 +1,9 @@
 #created 4/15/2022 from sentdex youtube tutorial https://www.youtube.com/watch?v=5U2WdZxJhEE
 # on 4/18/2022 realized that DentosalSc2 library was old, 2 years. so uninstalled and started on BurnySc2
 #https://github.com/BurnySc2/python-sc2/issues/4 - for major changes
+
+#First Win against Zerg Easy AI on 4/19/2022
+
 from ctypes import Structure
 import os
 import sys
@@ -40,6 +43,7 @@ class Oli_bot(BotAI):
         self.Train_marines = False
         self.Early_build = True
         self.Build_factory = False
+        self.Attack_flag = False
         
     async def on_step(self, iteration):
         
@@ -267,11 +271,28 @@ class Oli_bot(BotAI):
                         self.Build_supplyD_2 = True
                         self.Train_marine = True
                         print("BARRACKS 1a BUILT!!!")
-            
-            ''' workers = self.workers.gathering
-            if workers and barracks_placement_position:  # if workers were found
+        
+        #build Factory
+        if self.Build_factory == True and self.can_afford(UnitTypeId.FACTORY):
+            scv_workers = self.units(UnitTypeId.SCV).closer_than(20.0, cc)
+            workers: Units = scv_workers
+            if workers:  # if workers were found
                 worker: Unit = workers.random
-                worker.build(UnitTypeId.BARRACKS, barracks_placement_position) '''
+                for place in range(1,15):
+                    location: Point2 = await self.find_placement(UnitTypeId.FACTORYTECHLAB, worker.position, placement_step =10)
+                    # If a placement location was found
+                    if location and self.Build_factory == True:
+                        # Order worker to build exactly on that location
+                        if worker.build(UnitTypeId.FACTORY, location):
+                            self.Build_supplyD_more = False
+                            print("Factory 1 BUILT!!!")
+                            self.Build_reactorB_1 = True
+                            self.Build_factory = False
+                    else:
+                        print("NO LOCATION TO PUT FACTORY")
+            else:
+                print("NO WORKERS TO BUILD FACTORY")
+            
         #Build Reactor
         if self.Build_reactorB_1 == True and self.can_afford(UnitTypeId.BARRACKSREACTOR):
             barracks_struc: Structure = self.structures(UnitTypeId.BARRACKS).random
@@ -284,7 +305,14 @@ class Oli_bot(BotAI):
             #self.structures(UnitTypeId.BARRACKS).build(UnitTypeId.BARRACKSREACTOR)
         
         #train one Marine then build reactor
-        if (
+        if self.Train_marine == True and self.can_afford(UnitTypeId.MARINE) and self.structures(UnitTypeId.BARRACKS).ready:
+            #print("Length of Barracks with reactor training list is: {0}".format(x1))
+            barracks_struc: Structure = self.structures(UnitTypeId.BARRACKS).random
+            if self.do(barracks_struc.train(UnitTypeId.MARINE)):
+                self.Train_marine = False
+                #self.Build_reactorB_1 = True
+                self.Build_factory = True
+        ''' if (
             self.structures(UnitTypeId.BARRACKS) and self.can_afford(UnitTypeId.MARINE)
             and self.Train_marine == True
             ):
@@ -292,8 +320,8 @@ class Oli_bot(BotAI):
             if self.do(barracks_struc.train(UnitTypeId.MARINE)):
                 print("Training Marine 1")
                 self.Train_marine = False
-                self.Build_reactorB_1 = True
-                self.Build_factory = True
+                #self.Build_reactorB_1 = True
+                self.Build_factory = True '''
                 
        
         
@@ -307,18 +335,19 @@ class Oli_bot(BotAI):
             barracks_struc: Structure = self.structures(UnitTypeId.BARRACKS).random
             self.do(barracks_struc.train(UnitTypeId.MARINE))    
 
-        num_mar = len(self.units(UnitTypeId.MARINE))
-        if num_mar > 15:
-            for unit1 in self.units(UnitTypeId.MARINE):
-                # Move to nearest enemy ground unit/building because no enemy unit is closer than 5
-                allEnemyGroundUnits: Units = self.enemy_units.not_flying
-                if allEnemyGroundUnits:
-                    closestEnemy: Unit = allEnemyGroundUnits.closest_to(unit1)
-                    unit1.move(closestEnemy)
-                    continue  # Continue for loop, don't execute any of the following
+        if self.Attack_flag == True:
+            num_mar = len(self.units(UnitTypeId.MARINE))
+            if num_mar > 15:
+                for unit1 in self.units(UnitTypeId.MARINE):
+                    # Move to nearest enemy ground unit/building because no enemy unit is closer than 5
+                    allEnemyGroundUnits: Units = self.enemy_units.not_flying
+                    if allEnemyGroundUnits:
+                        closestEnemy: Unit = allEnemyGroundUnits.closest_to(unit1)
+                        unit1.move(closestEnemy)
+                        continue  # Continue for loop, don't execute any of the following
 
-                # Move to random enemy start location if no enemy buildings have been seen
-                unit1.move(random.choice(self.enemy_start_locations))
+                    # Move to random enemy start location if no enemy buildings have been seen
+                    unit1.move(random.choice(self.enemy_start_locations))
                         
         ''' if self.units(UnitTypeId.BARRACKS).exists:
             for brks_react in self.units(UnitTypeId.BARRACKS).ready:
@@ -361,7 +390,7 @@ def main():
     run_game(
         maps.get("Abyssal Reef LE"),
         [Bot(Race.Terran, Oli_bot()), Computer(Race.Zerg, Difficulty.Easy)],
-        realtime=True,
+        realtime=False,
         # sc2_version="4.10.1",
     )
 
